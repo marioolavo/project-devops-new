@@ -12,25 +12,25 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - zabbix-agent # Garante que o agente suba junto
+      - zabbix-agent
 
   # --- O "Olheiro" (Coleta os dados do Docker) ---
   zabbix-agent:
     image: zabbix/zabbix-agent2:latest
     container_name: zabbix_agent
-    privileged: true # Obrigatório para ler o socket do Docker
+    privileged: true
     user: root
     ports:
       - "10050:10050"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Lê os stats dos containers
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - ZBX_HOSTNAME=Zabbix-Agent-Docker
-      - ZBX_SERVER_HOST=zabbix-server # Aponta para o container do Server abaixo
+      - ZBX_SERVER_HOST=zabbix-server
     depends_on:
       - zabbix-server
 
-  # --- Infraestrutura Zabbix (Server + DB + Front) ---
+  # --- Infraestrutura Zabbix ---
   zabbix-db:
     image: mysql:8.0
     container_name: zabbix_db
@@ -84,11 +84,14 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app
+      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=alexanderzobnin-zabbix-datasource
     depends_on:
       - zabbix-server
     volumes:
       - grafana_data:/var/lib/grafana
 
+# --- Definição dos Volumes (Importante!) ---
 volumes:
   zabbix_db_data:
   grafana_data:

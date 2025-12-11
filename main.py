@@ -87,6 +87,25 @@ def contact():
     elif request.method == "GET":
         return render_template("contact.html", send_form=False)
 
+
+@app.route('/banco')
+def ver_banco():
+    # 1. Conecta
+    conn = get_db()
+    cursor = conn.cursor()
+
+
+    try:
+        cursor.execute("SELECT * FROM users")
+        dados = cursor.fetchall()
+    except sqlite3.OperationalError:
+        dados = []
+
+    conn.close()
+
+    # 3. Manda para o HTML
+    return render_template("banco.html", usuarios=dados)
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
