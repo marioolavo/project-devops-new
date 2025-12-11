@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # --- Sua Aplicação ---
+  web:
+    build: .
+    container_name: simple_blog_app
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      - zabbix-agent # Garante que o agente suba junto
+
+  # --- O "Olheiro" (Coleta os dados do Docker) ---
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:latest
+    container_name: zabbix_agent
+    privileged: true # Obrigatório para ler o socket do Docker
+    user: root
+    ports:
+      - "10050:10050"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Lê os stats dos containers
+    environment:
+      - ZBX_HOSTNAME=Zabbix-Agent-Docker
+      - ZBX_SERVER_HOST=zabbix-server # Aponta para o container do Server abaixo
+    depends_on:
+      - zabbix-server
+
+  # --- Infraestrutura Zabbix (Server + DB + Front) ---
+  zabbix-db:
+    image: mysql:8.0
+    container_name: zabbix_db
+    environment:
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - zabbix_db_data:/var/lib/mysql
+    command: --character-set-server=utf8 --collation-server=utf8_bin --default-authentication-plugin=mysql_native_password
+
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:latest
+    container_name: zabbix_server
+    environment:
+      DB_SERVER_HOST: zabbix-db
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    depends_on:
+      - zabbix-db
+    ports:
+      - "10051:10051"
+
+  zabbix-frontend:
+    image: zabbix/zabbix-web-nginx-mysql:latest
+    container_name: zabbix_frontend
+    environment:
+      DB_SERVER_HOST: zabbix-db
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pass
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: "America/Sao_Paulo"
+    depends_on:
+      - zabbix-server
+      - zabbix-db
+    ports:
+      - "8080:8080"
+
+  # --- Visualização (Grafana) ---
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - zabbix-server
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  zabbix_db_data:
+  grafana_data:
