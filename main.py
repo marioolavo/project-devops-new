@@ -3,10 +3,34 @@ from flask import Flask,request ,render_template
 import requests
 from dotenv import load_dotenv
 import os
+import sqlite3
+
+app = Flask(__name__)
+
+# CONNECT TO DATABASE
+def get_db():
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row  # permite acessar colunas por nome
+    return conn
+
+# CREATE TABLE IF NOT EXISTS
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT NOT NULL,
+            message TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 
 # Function Send Email
 load_dotenv()
-
 def send_email(message_to_send):
     # Email settings
     my_email = os.getenv("EMAIL_USER")
@@ -21,9 +45,9 @@ def send_email(message_to_send):
 # API JSON
 posts = requests.get("https://api.npoint.io/c790b4d5cab58020d391").json()
 
-app = Flask(__name__)
 
 
+# Routes
 @app.route('/')
 def get_all_posts():
     return render_template("index.html", all_posts=posts)
@@ -47,10 +71,25 @@ def contact():
     if request.method == 'POST':
         data = request.form
         message = f"{data['name']}\n{data['phone']}\n{data['email']}\n{data['message']}"
+
+        # Save to DATABASE
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (nome, email, message) VALUES (?, ?, ?)",
+            (data['name'], data['email'], data['message'])
+        )
+        conn.commit()
+        conn.close()
+        # Send Email
         send_email(message)
         return render_template ("contact.html", send_form=True)
     elif request.method == "GET":
         return render_template("contact.html", send_form=False)
 
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True)
+
+
+
